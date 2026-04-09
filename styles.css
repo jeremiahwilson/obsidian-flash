@@ -1,4 +1,21 @@
-/* Backdrop dimming disabled */
+/* Backdrop: grey out all text while flash is active. */
+.flash-backdrop .cm-content .cm-line,
+.flash-backdrop .cm-content .cm-line * {
+  color: var(--text-faint) !important;
+}
+
+/* Matched text (the part after the label) stays bright white */
+.flash-backdrop .cm-content .cm-line .flash-match,
+.flash-backdrop .cm-content .cm-line .flash-match * {
+  color: var(--text-normal) !important;
+  font-weight: 600;
+}
+
+/* Labels keep their accent color regardless of backdrop */
+.flash-backdrop .cm-content .cm-line .flash-label,
+.flash-backdrop .cm-content .cm-line .flash-label * {
+  color: var(--text-on-accent) !important;
+}
 
 /* The matched text highlight */
 .flash-match {

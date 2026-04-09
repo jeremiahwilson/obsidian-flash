@@ -69,14 +69,15 @@ function buildDecorations(_doc, matches) {
   const ranges = [];
   for (const m of matches) {
     ranges.push(
-      import_view.Decoration.widget({
-        widget: new LabelWidget(m.label),
-        side: -1
-      }).range(m.from)
+      import_view.Decoration.replace({
+        widget: new LabelWidget(m.label)
+      }).range(m.from, m.from + 1)
     );
-    ranges.push(
-      import_view.Decoration.mark({ class: "flash-match" }).range(m.from, m.to)
-    );
+    if (m.to > m.from + 1) {
+      ranges.push(
+        import_view.Decoration.mark({ class: "flash-match" }).range(m.from + 1, m.to)
+      );
+    }
   }
   return import_view.Decoration.set(ranges, true);
 }

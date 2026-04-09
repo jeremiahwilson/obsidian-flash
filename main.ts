@@ -80,17 +80,18 @@ function buildDecorations(
 
   const ranges: Range<Decoration>[] = [];
   for (const m of matches) {
-    // Label widget before the match
+    // Replace the first character of the match with the label widget
     ranges.push(
-      Decoration.widget({
+      Decoration.replace({
         widget: new LabelWidget(m.label),
-        side: -1,
-      }).range(m.from)
+      }).range(m.from, m.from + 1)
     );
-    // Highlight the matched text
-    ranges.push(
-      Decoration.mark({ class: "flash-match" }).range(m.from, m.to)
-    );
+    // Highlight the rest of the matched text (if any)
+    if (m.to > m.from + 1) {
+      ranges.push(
+        Decoration.mark({ class: "flash-match" }).range(m.from + 1, m.to)
+      );
+    }
   }
   // Decoration.set sorts ranges automatically (unlike RangeSetBuilder)
   return Decoration.set(ranges, true);
