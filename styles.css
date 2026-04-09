@@ -1,0 +1,38 @@
+/* Backdrop dimming disabled */
+
+/* The matched text highlight */
+.flash-match {
+  background-color: var(--text-highlight-bg);
+  border-radius: 2px;
+  opacity: 1;
+}
+
+/* The jump label overlaid on match positions */
+.flash-label {
+  position: relative;
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  font-weight: 700;
+  border-radius: 2px;
+  padding: 0 1px;
+  opacity: 1;
+  z-index: 10;
+}
+
+/* Search input indicator in status bar */
+.flash-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smallest);
+  color: var(--text-accent);
+}
+
+.flash-status-pattern {
+  background: var(--background-modifier-form-field);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--background-modifier-border);
+  min-width: 2em;
+}
