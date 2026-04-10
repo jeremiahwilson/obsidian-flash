@@ -2,6 +2,9 @@ import {
   Plugin,
   MarkdownView,
   Notice,
+  PluginSettingTab,
+  App,
+  Setting,
 } from "obsidian";
 import {
   EditorView,
@@ -346,11 +349,26 @@ class FlashSession {
   }
 }
 
+// ── Settings ──────────────────────────────────────────────────────────
+interface FlashSettings {
+  triggerKey: string;
+}
+
+const DEFAULT_SETTINGS: FlashSettings = {
+  triggerKey: "s",
+};
+
 // ── Plugin ────────────────────────────────────────────────────────────
 export default class FlashPlugin extends Plugin {
+  settings: FlashSettings = DEFAULT_SETTINGS;
   private currentSession: FlashSession | null = null;
+  // The key currently bound in vim — tracked so we know what to unmap
+  // when the user changes the trigger in settings.
+  private activeMappedKey: string | null = null;
 
   async onload() {
+    await this.loadSettings();
+
     // Register the CM6 state field for decorations
     this.registerEditorExtension([flashField]);
 
@@ -363,7 +381,10 @@ export default class FlashPlugin extends Plugin {
       },
     });
 
-    // Hook into vim mode: map 's' in normal mode to trigger flash
+    // Settings tab
+    this.addSettingTab(new FlashSettingTab(this.app, this));
+
+    // Hook into vim mode once the workspace is ready
     this.app.workspace.onLayoutReady(() => {
       this.registerVimMapping();
     });
@@ -372,6 +393,18 @@ export default class FlashPlugin extends Plugin {
   onunload() {
     this.currentSession?.stop();
     this.unregisterVimMapping();
+  }
+
+  async loadSettings() {
+    this.settings = Object.assign(
+      {},
+      DEFAULT_SETTINGS,
+      await this.loadData()
+    );
+  }
+
+  async saveSettings() {
+    await this.saveData(this.settings);
   }
 
   private startFlash() {
@@ -389,45 +422,90 @@ export default class FlashPlugin extends Plugin {
   }
 
   private registerVimMapping() {
-    // Access the vim API exposed by Obsidian's built-in vim mode
     const vimApi = this.getVimApi();
     if (!vimApi) return;
 
-    // Define an ex command that triggers flash
+    // Define the ex command once (safe to call repeatedly)
     vimApi.defineEx("flash", "fl", () => {
       this.startFlash();
     });
 
-    // Map 's' in normal mode to :flash<CR> (the <CR> actually executes it)
-    vimApi.map("s", ":flash<CR>", "normal");
-    vimApi.map("s", ":flash<CR>", "visual");
+    // Bind the configured trigger key to :flash<CR>
+    const key = this.settings.triggerKey;
+    if (!key) return;
+
+    vimApi.map(key, ":flash<CR>", "normal");
+    vimApi.map(key, ":flash<CR>", "visual");
+    this.activeMappedKey = key;
   }
 
   private unregisterVimMapping() {
     const vimApi = this.getVimApi();
-    if (!vimApi) return;
+    if (!vimApi || !this.activeMappedKey) return;
 
     try {
-      vimApi.unmap("s", "normal");
+      vimApi.unmap(this.activeMappedKey, "normal");
+      vimApi.unmap(this.activeMappedKey, "visual");
     } catch {
       // Mapping may not exist
     }
+    this.activeMappedKey = null;
+  }
+
+  /**
+   * Called by the settings tab when the user changes the trigger key.
+   * Unmaps the previous key (restoring its default vim behavior) and
+   * maps the new one.
+   */
+  async updateTriggerKey(newKey: string) {
+    this.unregisterVimMapping();
+    this.settings.triggerKey = newKey;
+    await this.saveSettings();
+    this.registerVimMapping();
   }
 
   private getVimApi(): any {
-    // Obsidian exposes the vim API on the window object when vim mode is enabled
-    // Try multiple known locations
     const w = window as any;
-
-    if (w.CodeMirrorAdapter?.Vim) {
-      return w.CodeMirrorAdapter.Vim;
-    }
-
-    // Some versions expose it differently
-    if (w.vim) {
-      return w.vim;
-    }
-
+    if (w.CodeMirrorAdapter?.Vim) return w.CodeMirrorAdapter.Vim;
+    if (w.vim) return w.vim;
     return null;
+  }
+}
+
+// ── Settings tab ──────────────────────────────────────────────────────
+class FlashSettingTab extends PluginSettingTab {
+  plugin: FlashPlugin;
+
+  constructor(app: App, plugin: FlashPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    new Setting(containerEl)
+      .setName("Trigger key")
+      .setDesc(
+        "The key in vim normal/visual mode that activates Flash. " +
+          "If you use the vimrc plugin, make sure this mapping doesn't " +
+          "conflict with a mapping set in your vimrc. You can also leave " +
+          "this setting blank and map :flash<CR> in your vimrc"
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("s")
+          .setValue(this.plugin.settings.triggerKey)
+          .onChange(async (value) => {
+            // Accept a single character, or empty to disable
+            const trimmed = value.trim();
+            if (trimmed.length > 1) {
+              new Notice("Trigger key must be a single character");
+              return;
+            }
+            await this.plugin.updateTriggerKey(trimmed);
+          })
+      );
   }
 }

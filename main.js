@@ -271,12 +271,20 @@ var FlashSession = class {
     this.cm.focus();
   }
 };
+var DEFAULT_SETTINGS = {
+  triggerKey: "s"
+};
 var FlashPlugin = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
+    this.settings = DEFAULT_SETTINGS;
     this.currentSession = null;
+    // The key currently bound in vim — tracked so we know what to unmap
+    // when the user changes the trigger in settings.
+    this.activeMappedKey = null;
   }
   async onload() {
+    await this.loadSettings();
     this.registerEditorExtension([flashField]);
     this.addCommand({
       id: "flash-jump",
@@ -285,6 +293,7 @@ var FlashPlugin = class extends import_obsidian.Plugin {
         this.startFlash();
       }
     });
+    this.addSettingTab(new FlashSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => {
       this.registerVimMapping();
     });
@@ -293,6 +302,16 @@ var FlashPlugin = class extends import_obsidian.Plugin {
     var _a;
     (_a = this.currentSession) == null ? void 0 : _a.stop();
     this.unregisterVimMapping();
+  }
+  async loadSettings() {
+    this.settings = Object.assign(
+      {},
+      DEFAULT_SETTINGS,
+      await this.loadData()
+    );
+  }
+  async saveSettings() {
+    await this.saveData(this.settings);
   }
   startFlash() {
     var _a;
@@ -312,27 +331,64 @@ var FlashPlugin = class extends import_obsidian.Plugin {
     vimApi.defineEx("flash", "fl", () => {
       this.startFlash();
     });
-    vimApi.map("s", ":flash<CR>", "normal");
-    vimApi.map("s", ":flash<CR>", "visual");
+    const key = this.settings.triggerKey;
+    if (!key)
+      return;
+    vimApi.map(key, ":flash<CR>", "normal");
+    vimApi.map(key, ":flash<CR>", "visual");
+    this.activeMappedKey = key;
   }
   unregisterVimMapping() {
     const vimApi = this.getVimApi();
-    if (!vimApi)
+    if (!vimApi || !this.activeMappedKey)
       return;
     try {
-      vimApi.unmap("s", "normal");
+      vimApi.unmap(this.activeMappedKey, "normal");
+      vimApi.unmap(this.activeMappedKey, "visual");
     } catch (e) {
     }
+    this.activeMappedKey = null;
+  }
+  /**
+   * Called by the settings tab when the user changes the trigger key.
+   * Unmaps the previous key (restoring its default vim behavior) and
+   * maps the new one.
+   */
+  async updateTriggerKey(newKey) {
+    this.unregisterVimMapping();
+    this.settings.triggerKey = newKey;
+    await this.saveSettings();
+    this.registerVimMapping();
   }
   getVimApi() {
     var _a;
     const w = window;
-    if ((_a = w.CodeMirrorAdapter) == null ? void 0 : _a.Vim) {
+    if ((_a = w.CodeMirrorAdapter) == null ? void 0 : _a.Vim)
       return w.CodeMirrorAdapter.Vim;
-    }
-    if (w.vim) {
+    if (w.vim)
       return w.vim;
-    }
     return null;
+  }
+};
+var FlashSettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    new import_obsidian.Setting(containerEl).setName("Trigger key").setDesc(
+      "The key in vim normal/visual mode that activates Flash. If you use the vimrc plugin, make sure this mapping doesn't conflict with a mapping set in your vimrc. You can also leave this setting blank and map :flash<CR> in your vimrc"
+    ).addText(
+      (text) => text.setPlaceholder("s").setValue(this.plugin.settings.triggerKey).onChange(async (value) => {
+        const trimmed = value.trim();
+        if (trimmed.length > 1) {
+          new import_obsidian.Notice("Trigger key must be a single character");
+          return;
+        }
+        await this.plugin.updateTriggerKey(trimmed);
+      })
+    );
   }
 };
