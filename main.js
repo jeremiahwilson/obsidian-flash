@@ -120,19 +120,19 @@ function findMatches(cm, pattern) {
   }
   return results;
 }
-function assignLabels(cm, matches, cursorPos, pattern) {
+function assignLabels(cm, matches, cursorPos, _pattern) {
   const sorted = [...matches].sort(
     (a, b) => Math.abs(a.from - cursorPos) - Math.abs(b.from - cursorPos)
   );
-  const nextChars = /* @__PURE__ */ new Set();
+  const extensionChars = /* @__PURE__ */ new Set();
+  const docLen = cm.state.doc.length;
   for (const m of sorted) {
-    if (m.to < cm.state.doc.length) {
+    if (m.to < docLen) {
       const ch = cm.state.doc.sliceString(m.to, m.to + 1).toLowerCase();
-      nextChars.add(ch);
+      extensionChars.add(ch);
     }
   }
-  const available = LABELS.split("").filter((c) => !nextChars.has(c));
-  const pool = available.length >= sorted.length ? available : LABELS.split("");
+  const pool = LABELS.split("").filter((c) => !extensionChars.has(c));
   return sorted.slice(0, pool.length).map((m, i) => ({
     ...m,
     label: pool[i]
@@ -226,12 +226,6 @@ var FlashSession = class {
     e.stopPropagation();
     const key = e.key.toLowerCase();
     if (this.matches.length > 0 && this.pattern.length > 0) {
-      const extendedMatches = findMatches(this.cm, this.pattern + e.key);
-      if (extendedMatches.length > 0) {
-        this.pattern += e.key;
-        this.updateDecorations();
-        return;
-      }
       const target = this.matches.find((m) => m.label === key);
       if (target) {
         this.jumpTo(target);

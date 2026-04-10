@@ -149,28 +149,32 @@ function assignLabels(
   cm: EditorView,
   matches: { from: number; to: number }[],
   cursorPos: number,
-  pattern: string
+  _pattern: string
 ): FlashMatch[] {
   // Sort by distance from cursor (closest first)
   const sorted = [...matches].sort(
     (a, b) => Math.abs(a.from - cursorPos) - Math.abs(b.from - cursorPos)
   );
 
-  // Collect the set of characters that appear right after any match,
-  // so we can avoid using those as labels (prevents ambiguity between
-  // "extending the search" and "picking a label").
-  const nextChars = new Set<string>();
+  // Collect the set of characters that, if typed, would extend the current
+  // search pattern to match somewhere. These are the characters immediately
+  // following each current match. We MUST NOT use these as labels — otherwise
+  // the user has no way to disambiguate "extend the search" from "pick this
+  // label".
+  const extensionChars = new Set<string>();
+  const docLen = cm.state.doc.length;
   for (const m of sorted) {
-    if (m.to < cm.state.doc.length) {
+    if (m.to < docLen) {
       const ch = cm.state.doc.sliceString(m.to, m.to + 1).toLowerCase();
-      nextChars.add(ch);
+      extensionChars.add(ch);
     }
   }
 
-  // Build available labels, preferring ones that won't conflict
-  const available = LABELS.split("").filter((c) => !nextChars.has(c));
-  // Fall back to the full alphabet if we filtered too aggressively
-  const pool = available.length >= sorted.length ? available : LABELS.split("");
+  // Build the label pool: only characters that are NOT valid pattern
+  // extensions. If there are more matches than safe labels, some matches
+  // simply don't get a label — the user can type more search characters to
+  // narrow things down. We never fall back to unsafe labels.
+  const pool = LABELS.split("").filter((c) => !extensionChars.has(c));
 
   return sorted.slice(0, pool.length).map((m, i) => ({
     ...m,
@@ -290,19 +294,10 @@ class FlashSession {
 
     const key = e.key.toLowerCase();
 
-    // If labels are showing, check if this key is a label pick vs search extension.
-    // Like flash.nvim: if extending the pattern still produces matches, extend;
-    // otherwise, treat it as a label pick.
+    // Labels are guaranteed by assignLabels to never be a valid extension of
+    // the current pattern, so if the typed key matches a visible label it's
+    // unambiguously a jump request.
     if (this.matches.length > 0 && this.pattern.length > 0) {
-      const extendedMatches = findMatches(this.cm, this.pattern + e.key);
-      if (extendedMatches.length > 0) {
-        // Extending the search still has results — treat as search extension
-        this.pattern += e.key;
-        this.updateDecorations();
-        return;
-      }
-
-      // No results from extending — try as label pick
       const target = this.matches.find((m) => m.label === key);
       if (target) {
         this.jumpTo(target);
@@ -311,7 +306,7 @@ class FlashSession {
       }
     }
 
-    // No labels yet, or key doesn't match a label — extend search
+    // Otherwise, extend the search pattern
     this.pattern += e.key;
     this.updateDecorations();
   }
