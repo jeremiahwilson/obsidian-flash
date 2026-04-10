@@ -166,13 +166,11 @@ var FlashSession = class {
     this.pattern = "";
     this.active = false;
     this.matches = [];
-    this.statusEl = null;
     this.onCleanup = [];
     this.lastEvent = null;
     this.cm = cm;
   }
   start() {
-    var _a;
     console.log("[flash] session start");
     this.active = true;
     this.pattern = "";
@@ -181,14 +179,6 @@ var FlashSession = class {
     this.onCleanup.push(
       () => this.cm.dom.classList.remove("flash-backdrop")
     );
-    this.statusEl = document.createElement("div");
-    this.statusEl.className = "flash-status";
-    this.statusEl.innerHTML = `<span>Flash:</span><span class="flash-status-pattern"></span>`;
-    (_a = this.plugin.app.workspace.containerEl.querySelector(".status-bar")) == null ? void 0 : _a.prepend(this.statusEl);
-    this.onCleanup.push(() => {
-      var _a2;
-      return (_a2 = this.statusEl) == null ? void 0 : _a2.remove();
-    });
     const handler = (e) => this.handleKey(e);
     const attach = () => {
       this.cm.contentDOM.addEventListener("keydown", handler, true);
@@ -259,10 +249,6 @@ var FlashSession = class {
     this.updateDecorations();
   }
   updateDecorations() {
-    var _a;
-    const patternEl = (_a = this.statusEl) == null ? void 0 : _a.querySelector(".flash-status-pattern");
-    if (patternEl)
-      patternEl.textContent = this.pattern || " ";
     if (!this.pattern) {
       this.matches = [];
       this.cm.dispatch({ effects: clearFlash.of(null) });

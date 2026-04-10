@@ -215,7 +215,6 @@ class FlashSession {
   private active = false;
   private matches: FlashMatch[] = [];
   private cm: EditorView;
-  private statusEl: HTMLElement | null = null;
   private onCleanup: (() => void)[] = [];
 
   constructor(
@@ -236,15 +235,6 @@ class FlashSession {
     this.onCleanup.push(() =>
       this.cm.dom.classList.remove("flash-backdrop")
     );
-
-    // Show status indicator
-    this.statusEl = document.createElement("div");
-    this.statusEl.className = "flash-status";
-    this.statusEl.innerHTML = `<span>Flash:</span><span class="flash-status-pattern"></span>`;
-    this.plugin.app.workspace.containerEl
-      .querySelector(".status-bar")
-      ?.prepend(this.statusEl);
-    this.onCleanup.push(() => this.statusEl?.remove());
 
     // Capture keystrokes — attach to BOTH the editor content DOM and document
     // at capture phase, so we intercept before vim mode / CodeMirror keymaps.
@@ -339,10 +329,6 @@ class FlashSession {
   }
 
   private updateDecorations() {
-    // Update status
-    const patternEl = this.statusEl?.querySelector(".flash-status-pattern");
-    if (patternEl) patternEl.textContent = this.pattern || " ";
-
     if (!this.pattern) {
       this.matches = [];
       this.cm.dispatch({ effects: clearFlash.of(null) });
