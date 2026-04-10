@@ -328,13 +328,6 @@ class FlashSession {
     const rawMatches = findMatches(this.cm, this.pattern);
     this.matches = assignLabels(this.cm, rawMatches, cursorPos, this.pattern);
 
-    // Auto-jump if exactly one match
-    if (this.matches.length === 1) {
-      this.jumpTo(this.matches[0]);
-      this.stop();
-      return;
-    }
-
     this.cm.dispatch({
       effects: setFlashState.of({
         active: true,

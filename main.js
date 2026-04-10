@@ -255,11 +255,6 @@ var FlashSession = class {
     const cursorPos = this.cm.state.selection.main.head;
     const rawMatches = findMatches(this.cm, this.pattern);
     this.matches = assignLabels(this.cm, rawMatches, cursorPos, this.pattern);
-    if (this.matches.length === 1) {
-      this.jumpTo(this.matches[0]);
-      this.stop();
-      return;
-    }
     this.cm.dispatch({
       effects: setFlashState.of({
         active: true,

@@ -1,9 +1,9 @@
 {
   "id": "obsidian-flash",
-  "name": "Flash",
+  "name": "Vim-Flash",
   "version": "0.1.0",
   "minAppVersion": "1.0.0",
   "description": "Vim flash navigation — jump anywhere visible by typing a search pattern and picking a label.",
-  "author": "Jeremiah",
+  "author": "jewil",
   "isDesktopOnly": true
 }
