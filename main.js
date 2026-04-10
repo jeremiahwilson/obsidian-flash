@@ -120,7 +120,7 @@ function findMatches(cm, pattern) {
   }
   return results;
 }
-function assignLabels(cm, matches, cursorPos, _pattern) {
+function assignLabels(cm, matches, cursorPos, _pattern, previous) {
   const sorted = [...matches].sort(
     (a, b) => Math.abs(a.from - cursorPos) - Math.abs(b.from - cursorPos)
   );
@@ -132,11 +132,33 @@ function assignLabels(cm, matches, cursorPos, _pattern) {
       extensionChars.add(ch);
     }
   }
-  const pool = LABELS.split("").filter((c) => !extensionChars.has(c));
-  return sorted.slice(0, pool.length).map((m, i) => ({
-    ...m,
-    label: pool[i]
-  }));
+  const safeLabels = new Set(
+    LABELS.split("").filter((c) => !extensionChars.has(c))
+  );
+  const prevByFrom = /* @__PURE__ */ new Map();
+  for (const p of previous)
+    prevByFrom.set(p.from, p.label);
+  const used = /* @__PURE__ */ new Set();
+  const result = sorted.map(() => null);
+  sorted.forEach((m, i) => {
+    const prevLabel = prevByFrom.get(m.from);
+    if (prevLabel && safeLabels.has(prevLabel) && !used.has(prevLabel)) {
+      result[i] = { ...m, label: prevLabel };
+      used.add(prevLabel);
+    }
+  });
+  const freshPool = LABELS.split("").filter(
+    (c) => safeLabels.has(c) && !used.has(c)
+  );
+  let freshIdx = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (result[i] !== null)
+      continue;
+    if (freshIdx >= freshPool.length)
+      break;
+    result[i] = { ...sorted[i], label: freshPool[freshIdx++] };
+  }
+  return result.filter((m) => m !== null);
 }
 var FlashSession = class {
   constructor(plugin, cm) {
@@ -248,7 +270,14 @@ var FlashSession = class {
     }
     const cursorPos = this.cm.state.selection.main.head;
     const rawMatches = findMatches(this.cm, this.pattern);
-    this.matches = assignLabels(this.cm, rawMatches, cursorPos, this.pattern);
+    const previous = this.matches;
+    this.matches = assignLabels(
+      this.cm,
+      rawMatches,
+      cursorPos,
+      this.pattern,
+      previous
+    );
     this.cm.dispatch({
       effects: setFlashState.of({
         active: true,

@@ -149,7 +149,8 @@ function assignLabels(
   cm: EditorView,
   matches: { from: number; to: number }[],
   cursorPos: number,
-  _pattern: string
+  _pattern: string,
+  previous: FlashMatch[]
 ): FlashMatch[] {
   // Sort by distance from cursor (closest first)
   const sorted = [...matches].sort(
@@ -170,16 +171,42 @@ function assignLabels(
     }
   }
 
-  // Build the label pool: only characters that are NOT valid pattern
-  // extensions. If there are more matches than safe labels, some matches
-  // simply don't get a label — the user can type more search characters to
-  // narrow things down. We never fall back to unsafe labels.
-  const pool = LABELS.split("").filter((c) => !extensionChars.has(c));
+  // Safe label pool: characters that are NOT valid pattern extensions.
+  const safeLabels = new Set(
+    LABELS.split("").filter((c) => !extensionChars.has(c))
+  );
 
-  return sorted.slice(0, pool.length).map((m, i) => ({
-    ...m,
-    label: pool[i],
-  }));
+  // Label stability: if a match existed in the previous update and its old
+  // label is still in the safe pool, reuse it so labels don't shuffle around
+  // as the user narrows their search.
+  const prevByFrom = new Map<number, string>();
+  for (const p of previous) prevByFrom.set(p.from, p.label);
+
+  const used = new Set<string>();
+  const result: (FlashMatch | null)[] = sorted.map(() => null);
+
+  // Pass 1: reuse previous labels where possible
+  sorted.forEach((m, i) => {
+    const prevLabel = prevByFrom.get(m.from);
+    if (prevLabel && safeLabels.has(prevLabel) && !used.has(prevLabel)) {
+      result[i] = { ...m, label: prevLabel };
+      used.add(prevLabel);
+    }
+  });
+
+  // Pass 2: assign fresh labels to remaining matches from the safe pool,
+  // preserving cursor-distance order
+  const freshPool = LABELS.split("").filter(
+    (c) => safeLabels.has(c) && !used.has(c)
+  );
+  let freshIdx = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (result[i] !== null) continue;
+    if (freshIdx >= freshPool.length) break; // out of safe labels
+    result[i] = { ...sorted[i], label: freshPool[freshIdx++] };
+  }
+
+  return result.filter((m): m is FlashMatch => m !== null);
 }
 
 // ── The Flash controller ──────────────────────────────────────────────
@@ -324,7 +351,14 @@ class FlashSession {
 
     const cursorPos = this.cm.state.selection.main.head;
     const rawMatches = findMatches(this.cm, this.pattern);
-    this.matches = assignLabels(this.cm, rawMatches, cursorPos, this.pattern);
+    const previous = this.matches;
+    this.matches = assignLabels(
+      this.cm,
+      rawMatches,
+      cursorPos,
+      this.pattern,
+      previous
+    );
 
     this.cm.dispatch({
       effects: setFlashState.of({
